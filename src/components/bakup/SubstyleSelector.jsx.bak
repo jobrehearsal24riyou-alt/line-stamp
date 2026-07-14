@@ -1,0 +1,57 @@
+import React from "react";
+
+export default function SubstyleSelector({ selectedStyle, substyles, selectedPromptParts, handleCheckboxChange, isDarkMode, theme }) {
+  if (!selectedStyle) {
+    return (
+      <div className="substyle-selector" style={{ marginTop: "24px" }}>
+        <p className="label" style={{ color: theme.textMain }}>■ 3. 画風調整パーツを選択してください（複数選択可）</p>
+        <div style={{ padding: "16px", background: theme.cardBg, borderRadius: "8px", border: `1px dashed ${theme.cardBorder}` }}>
+          <p style={{ color: theme.textMuted, fontSize: "0.9rem", margin: 0 }}>
+            画風スタイルを選択すると、調整パーツが表示されます。
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="substyle-selector" style={{ marginTop: "24px" }}>
+      <p className="label" style={{ color: theme.textMain }}>■ 3. 画風調整パーツを選択してください（複数選択可）</p>
+      
+      <div className="substyle-list" style={{ 
+        background: theme.panelBg, padding: "16px", borderRadius: "8px",
+        border: `1px solid ${theme.cardBorder}`, display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px"
+      }}>
+        {substyles.map((sub) => {
+          const isChecked = selectedPromptParts.includes(sub.prompt_text);
+          return (
+            <div 
+              key={sub.substyle_id} 
+              onClick={() => handleCheckboxChange(sub.prompt_text)}
+              className={`style-card ${isChecked ? "checked" : ""}`}
+              style={{ 
+                display: "flex", alignItems: "center", gap: "10px", cursor: "pointer",
+                padding: "10px", borderRadius: "6px",
+                border: isChecked ? "1px solid #3b82f6" : `1px solid ${isDarkMode ? "transparent" : theme.cardBorder}`,
+                background: isChecked ? (isDarkMode ? "rgba(59, 130, 246, 0.15)" : "#eff6ff") : theme.cardBg,
+                transition: "all 0.2s ease"
+              }}
+            >
+              <div style={{
+                width: "16px", height: "16px", border: "1px solid #475569", borderRadius: "4px",
+                background: isChecked ? "#3b82f6" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "10px", color: "#fff"
+              }}>
+                {isChecked ? "✓" : ""}
+              </div>
+              <div>
+                <div style={{ fontSize: "0.9rem", fontWeight: "600", color: theme.textMain }}>{sub.substyle_name_ja}</div>
+                <div style={{ fontSize: "0.75rem", color: theme.textMuted, marginTop: "2px" }}>{sub.prompt_text}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

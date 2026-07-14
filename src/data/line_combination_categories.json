@@ -1,0 +1,10 @@
+{
+  "categories": [
+    { "category_id": "stationery", "name_ja": "文房具" },
+    { "category_id": "kitchen", "name_ja": "キッチン用品" },
+    { "category_id": "sweets", "name_ja": "スイーツ・カフェ" },
+    { "category_id": "gadget", "name_ja": "ガジェット・PC" },
+    { "category_id": "tools", "name_ja": "工具・DIY" },
+    { "category_id": "food", "name_ja": "食べ物全般" }
+  ]
+}

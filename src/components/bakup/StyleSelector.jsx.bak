@@ -1,0 +1,33 @@
+import React from "react";
+
+export default function StyleSelector({ styles, selectedStyle, setSelectedStyle, theme }) {
+  return (
+    <div className="style-selector" style={{ marginTop: "24px" }}>
+      <p className="label" style={{ color: theme.textMain }}>■ 2. 画風スタイルを選択してください</p>
+      <div className="style-flex" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        {styles.map((st) => {
+          const isStyleChecked = selectedStyle === st.style_id;
+          return (
+            <div 
+              key={st.style_id} 
+              onClick={() => setSelectedStyle(st.style_id)}
+              className={`style-card ${isStyleChecked ? "checked" : ""}`}
+              style={{
+                padding: "14px 20px", borderRadius: "8px",
+                border: isStyleChecked ? "2px solid #3b82f6" : `1px solid ${theme.cardBorder}`,
+                background: isStyleChecked ? theme.activeBg : theme.cardBg,
+                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "8px",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <span style={{ fontSize: "1.2rem" }}>✨</span>
+              <span style={{ fontWeight: "600", color: isStyleChecked ? theme.activeText : theme.textMain }}>
+                {st.style_name_ja}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

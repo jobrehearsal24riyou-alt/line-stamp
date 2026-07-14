@@ -1,0 +1,261 @@
+import { useState, useEffect } from "react";
+import "./App.css";
+// TauriのSQLプラグインをインポート
+import Database from "@tauri-apps/plugin-sql";
+
+// 💡 分割したコンポーネント群をインポート
+import CategorySelector from "./components/CategorySelector";
+import SubcategorySelector from "./components/SubcategorySelector";
+import StyleSelector from "./components/StyleSelector";
+import SubstyleSelector from "./components/SubstyleSelector";
+import PromptPreview from "./components/PromptPreview";
+
+function App() {
+  const [activeTab, setActiveTab] = useState("icons");
+  
+  // 📂 DBから取得するデータ群
+  const [categories, setCategories] = useState([]);       
+  const [subcategories, setSubcategories] = useState([]); 
+  const [styles, setStyles] = useState([]);               
+  const [substyles, setSubstyles] = useState([]);         
+
+  // 🎯 選択状態管理
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedSubCategoryName, setSelectedSubCategoryName] = useState(""); 
+  const [selectedItemId, setSelectedItemId] = useState(null);    
+  const [selectedStyle, setSelectedStyle] = useState("");
+  const [selectedPromptParts, setSelectedPromptParts] = useState([]);
+
+  // 💡 編集可能なプロンプト入力欄用のステート
+  const [editablePrompt, setEditablePrompt] = useState("");
+  const [isCopied, setIsCopied] = useState(false);
+
+  // 【自動テーマ判定】
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const currentHour = new Date().getHours();
+    return currentHour >= 21 || currentHour < 5;
+  });
+
+  // 🎨 ライト/ダークに連動するカラーテーマ変数
+  const theme = {
+    textMain: isDarkMode ? "#f8fafc" : "#334155",
+    textMuted: isDarkMode ? "#94a3b8" : "#64748b",
+    cardBg: isDarkMode ? "rgba(255, 255, 255, 0.03)" : "#ffffff",
+    cardBorder: isDarkMode ? "#475569" : "#cbd5e1",
+    activeBg: isDarkMode ? "#1e3a8a" : "#3b82f6",
+    activeText: "#ffffff",
+    panelBg: isDarkMode ? "#1e293b" : "#f8fafc",
+    previewBg: isDarkMode ? "#0f172a" : "#f1f5f9",
+    previewText: isDarkMode ? "#e2e8f0" : "#1e293b",
+    inputBg: isDarkMode ? "#1e293b" : "#ffffff"
+  };
+
+  // 🔌 1. 画面起動時：大カテゴリと画風スタイルをロード
+  useEffect(() => {
+    const loadInitialMaster = async () => {
+      try {
+        const db = await Database.load("sqlite:app.db");
+        const catResult = await db.select("SELECT category_id, category_name_ja FROM categories ORDER BY id ASC;");
+        setCategories(catResult);
+        
+        const styleResult = await db.select("SELECT style_id, style_name_ja FROM styles ORDER BY id ASC;");
+        setStyles(styleResult);
+      } catch (error) {
+        console.error("初期親マスターデータの取得に失敗:", error);
+      }
+    };
+    loadInitialMaster();
+  }, []);
+
+  // 🔄 2. 大カテゴリ選択時：連動データ取得
+  useEffect(() => {
+    if (!selectedCategory) {
+      setSubcategories([]);
+      setSelectedSubCategoryName("");
+      setSelectedItemId(null);
+      return;
+    }
+
+    const fetchLinkedSubcategories = async () => {
+      try {
+        const db = await Database.load("sqlite:app.db");
+        const result = await db.select(
+          `SELECT 
+            id, 
+            subcategory_id, 
+            subcategory_name_ja, 
+            item_name_ja, 
+            item_name_en
+           FROM subcategories
+           WHERE category_id = $1
+           ORDER BY id ASC;`,
+          [selectedCategory]
+        );
+        setSubcategories(result);
+
+        if (result.length > 0) {
+          const firstMiddleName = result[0].subcategory_name_ja;
+          setSelectedSubCategoryName(firstMiddleName);
+          
+          const firstItem = result.find(sub => sub.subcategory_name_ja === firstMiddleName);
+          setSelectedItemId(firstItem ? firstItem.id : result[0].id);
+        } else {
+          setSelectedSubCategoryName("");
+          setSelectedItemId(null);
+        }
+      } catch (error) {
+        console.error("サブカテゴリ連動クエリの実行に失敗:", error);
+      }
+    };
+    fetchLinkedSubcategories();
+  }, [selectedCategory]);
+
+  const middleCategoryList = Array.from(
+    new Set(subcategories.map((sub) => sub.subcategory_name_ja).filter(Boolean))
+  );
+
+  const filteredItems = subcategories.filter(
+    (sub) => sub.subcategory_name_ja === selectedSubCategoryName
+  );
+
+  const handleMiddleCategoryChange = (middleName) => {
+    setSelectedSubCategoryName(middleName);
+    const targetGroupItems = subcategories.filter(sub => sub.subcategory_name_ja === middleName);
+    if (targetGroupItems.length > 0) {
+      setSelectedItemId(targetGroupItems[0].id);
+    }
+  };
+
+  // 🔄 3. 画風スタイル連動
+  useEffect(() => {
+    if (!selectedStyle) {
+      setSubstyles([]);
+      return;
+    }
+    const fetchLinkedSubstyles = async () => {
+      try {
+        const db = await Database.load("sqlite:app.db");
+        const result = await db.select(
+          `SELECT substyles.substyle_id, substyles.substyle_name_ja, substyles.prompt_text
+           FROM substyles
+           INNER JOIN styles ON substyles.style_id = styles.style_id
+           WHERE styles.style_id = $1
+           ORDER BY substyles.id ASC;`,
+          [selectedStyle]
+        );
+        setSubstyles(result);
+        setSelectedPromptParts([]);
+      } catch (error) {
+        console.error("画風パーツ連動クエリの実行に失敗:", error);
+      }
+    };
+    fetchLinkedSubstyles();
+  }, [selectedStyle]);
+
+  const handleCheckboxChange = (promptText) => {
+    if (selectedPromptParts.includes(promptText)) {
+      setSelectedPromptParts(selectedPromptParts.filter(p => p !== promptText));
+    } else {
+      setSelectedPromptParts([...selectedPromptParts, promptText]);
+    }
+  };
+
+  // 💡 ボタン選択が変わるたびに、自動生成されたプロンプトを入力欄ステートに同期する
+  useEffect(() => {
+    const activeSubData = subcategories.find(sub => sub.id === selectedItemId);
+    const objectPrompt = activeSubData ? activeSubData.item_name_en : "";
+    const generated = [objectPrompt, ...selectedPromptParts].filter(Boolean).join(", ");
+    setEditablePrompt(generated);
+  }, [selectedItemId, selectedPromptParts, subcategories]);
+
+  // 💡 クリップボードへのコピー機能
+  const handleCopy = async () => {
+    if (!editablePrompt) return;
+    try {
+      await navigator.clipboard.writeText(editablePrompt);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      console.error("プロンプトのコピーに失敗しました:", error);
+    }
+  };
+
+  return (
+    <main className={`container ${isDarkMode ? "" : "light-mode"}`} style={{ color: theme.textMain }}>
+      
+      <div className="tab-menu">
+        <button className={`tab-button ${activeTab === "icons" ? "active" : ""}`} onClick={() => setActiveTab("icons")}>アイコン</button>
+        <button className={`tab-button ${activeTab === "stamps" ? "active" : ""}`} onClick={() => setActiveTab("stamps")}>LINEスタンプ</button>
+        <button className={`tab-button ${activeTab === "settings" ? "active" : ""}`} onClick={() => setActiveTab("settings")}>設定</button>
+      </div>
+
+      <div className={`tab-content ${activeTab === "icons" ? "active" : ""}`}>
+        <h2>アイコン制作</h2>
+        
+        {/* ■ 1. 大カテゴリ選択 */}
+        <CategorySelector 
+          categories={categories}
+          selectedCategory={selectedCategory}
+          setSelectedCategory={setSelectedCategory}
+          theme={theme}
+        />
+
+        {/* ■ 1-2. 中カテゴリ＆詳細アイテム選択 */}
+        <SubcategorySelector 
+          selectedCategory={selectedCategory}
+          middleCategoryList={middleCategoryList}
+          filteredItems={filteredItems}
+          selectedSubCategoryName={selectedSubCategoryName}
+          selectedItemId={selectedItemId}
+          handleMiddleCategoryChange={handleMiddleCategoryChange}
+          setSelectedItemId={setSelectedItemId}
+          theme={theme}
+        />
+
+        {/* ■ 2. 画風スタイル選択 */}
+        <StyleSelector 
+          styles={styles}
+          selectedStyle={selectedStyle}
+          setSelectedStyle={setSelectedStyle}
+          theme={theme}
+        />
+
+        {/* ■ 3. 連動画風パーツ選択 */}
+        <SubstyleSelector 
+          selectedStyle={selectedStyle}
+          substyles={substyles}
+          selectedPromptParts={selectedPromptParts}
+          handleCheckboxChange={handleCheckboxChange}
+          isDarkMode={isDarkMode}
+          theme={theme}
+        />
+
+        {/* ■ 4. 完成プロンプト表示 */}
+        <PromptPreview 
+          editablePrompt={editablePrompt}
+          setEditablePrompt={setEditablePrompt}
+          handleCopy={handleCopy}
+          isCopied={isCopied}
+          theme={theme}
+        />
+
+      </div>
+
+      <div className={`tab-content ${activeTab === "stamps" ? "active" : ""}`}>
+        <h2>LINEスタンプ制作</h2>
+        <p>（スタンプツールは後ほど実装します）</p>
+      </div>
+
+      <div className={`tab-content ${activeTab === "settings" ? "active" : ""}`}>
+        <h2>設定</h2>
+        <p className="setting-description">アプリの表示モードや全体設定を変更できます。</p>
+        <button className="theme-toggle-btn" onClick={() => setIsDarkMode(!isDarkMode)}>
+          {isDarkMode ? "☀️ ライトモードにする" : "🌙 ダークモードにする"}
+        </button>
+      </div>
+
+    </main>
+  );
+}
+
+export default App;

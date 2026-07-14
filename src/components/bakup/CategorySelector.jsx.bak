@@ -1,0 +1,33 @@
+import React from "react";
+
+export default function CategorySelector({ categories, selectedCategory, setSelectedCategory, theme }) {
+  return (
+    <div className="category-selector">
+      <p className="label" style={{ color: theme.textMain }}>■ 1. 大カテゴリを選択してください</p>
+      <div className="style-flex" style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        {categories.map((cat) => {
+          const isCategoryChecked = selectedCategory === cat.category_id;
+          return (
+            <div 
+              key={cat.category_id} 
+              onClick={() => setSelectedCategory(cat.category_id)}
+              className={`style-card ${isCategoryChecked ? "checked" : ""}`}
+              style={{
+                padding: "14px 20px", borderRadius: "8px",
+                border: isCategoryChecked ? "2px solid #3b82f6" : `1px solid ${theme.cardBorder}`,
+                background: isCategoryChecked ? theme.activeBg : theme.cardBg,
+                cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "8px",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <span style={{ fontSize: "1.2rem" }}>📁</span>
+              <span style={{ fontWeight: "600", color: isCategoryChecked ? theme.activeText : theme.textMain }}>
+                {cat.category_name_ja}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
