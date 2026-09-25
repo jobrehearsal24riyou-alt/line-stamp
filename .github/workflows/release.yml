@@ -1,0 +1,61 @@
+name: Release Tauri application
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "app-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Verify bundled LLM assets
+        shell: pwsh
+        run: |
+          $required = @(
+            "src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe",
+            "src-tauri/binaries/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path $path -PathType Leaf)) {
+              throw "Missing required LLM asset: $path"
+            }
+          }
+          if ((Get-ChildItem "src-tauri/binaries" -Filter "*.dll" -File).Count -eq 0) {
+            throw "Missing llama-server DLL dependencies under src-tauri/binaries"
+          }
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: app-v__VERSION__
+          releaseName: "prompt_make_projects v__VERSION__"
+          releaseBody: "Windows x64 installer and updater artifacts."
+          releaseDraft: true
+          prerelease: false

@@ -7,6 +7,7 @@
     "dev": "vite",
     "dedupe-db": "node scripts/dedupe_db.mjs",
     "build": "vite build",
+    "build:installer": "tauri build --bundles nsis",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -17,6 +18,7 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-sql": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.12.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sqlite": "^5.1.1",

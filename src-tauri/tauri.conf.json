@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "prompt_make_projects",
   "version": "0.1.0",
-  "identifier": "com.user.prompt_make_projects",
+  "identifier": "com.user.prompt-make-projects",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -23,13 +23,27 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis", "msi"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "externalBin": ["binaries/llama-server"],
+    "resources": ["binaries/*.dll", "binaries/*.gguf"]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlCODQ0Q0U1Qzg3Mzk5NUUKUldSZW1YUEk1VXlFbTlHZ3NjSWNxSVBFZ2Ixd0RuUEVPSU9yTG0weFduMXhXNG0vdmdUbEphZTgK",
+      "endpoints": [
+        "https://github.com/jobrehearsal24riyou-alt/line-stamp/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

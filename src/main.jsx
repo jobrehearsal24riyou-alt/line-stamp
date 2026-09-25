@@ -10,6 +10,8 @@ import LineStampMaker from "./components/LineStampMaker";
 
 import { usePromptData } from "./hooks/usePromptData";
 import { createTheme } from "./constants/theme";
+import { invoke } from "@tauri-apps/api/core";
+import { check } from "@tauri-apps/plugin-updater";
 import "./App.css";
 
 function MainApp() {
@@ -48,13 +50,70 @@ function MainApp() {
   } = usePromptData();
 
   const theme = createTheme(isDarkMode);
-  const [activeTab, setActiveTab] = React.useState("icons");
+  const [activeTab, setActiveTab] = React.useState("stamps");
+  const [isIconTabVisible, setIsIconTabVisible] = React.useState(() => {
+    const savedValue = window.localStorage.getItem("icon-tab-visible");
+    return savedValue === "true";
+  });
+  const [isCheckingForUpdates, setIsCheckingForUpdates] = React.useState(false);
+  const [updateStatus, setUpdateStatus] = React.useState("");
+
+  React.useEffect(() => {
+    window.localStorage.setItem("icon-tab-visible", String(isIconTabVisible));
+    if (!isIconTabVisible && activeTab === "icons") {
+      setActiveTab("stamps");
+    }
+  }, [activeTab, isIconTabVisible]);
+
+  async function handleStartLLM() {
+    try {
+      await invoke("start_llm_server");
+      alert("LLMサーバー起動リクエストを送信しました");
+    } catch (error) {
+      console.error("LLMサーバー起動エラー:", error);
+      alert("エラー: " + error);
+    }
+  }
+
+  async function handleCheckForUpdates() {
+    if (isCheckingForUpdates) return;
+
+    setIsCheckingForUpdates(true);
+    setUpdateStatus("更新を確認しています…");
+    try {
+      const update = await check();
+      if (!update) {
+        setUpdateStatus("現在、利用可能な更新はありません。");
+        return;
+      }
+
+      const notes = update.body ? "\n\n" + update.body : "";
+      if (!window.confirm("バージョン " + update.version + " に更新できます。ダウンロードしてインストールしますか？" + notes)) {
+        setUpdateStatus("更新をキャンセルしました。");
+        return;
+      }
+
+      await update.downloadAndInstall((event) => {
+        if (event.event === "Started" || event.event === "Progress") {
+          setUpdateStatus("更新ファイルをダウンロードしています…");
+        } else if (event.event === "Finished") {
+          setUpdateStatus("更新をインストールしています…");
+        }
+      });
+      setUpdateStatus("更新をインストールしました。アプリを再起動してください。");
+    } catch (error) {
+      console.error("アプリ更新エラー:", error);
+      setUpdateStatus("更新の確認に失敗しました: " + error);
+    } finally {
+      setIsCheckingForUpdates(false);
+    }
+  }
 
   return (
     <main className={`container ${isDarkMode ? "" : "light-mode"}`} style={{ color: theme.textMain }}>
 
       <div className="tab-menu">
-        <button className={`tab-button ${activeTab === "icons" ? "active" : ""}`} onClick={() => setActiveTab("icons")}>アイコン</button>
+        {isIconTabVisible && <button className={"tab-button " + (activeTab === "icons" ? "active" : "")} onClick={() => setActiveTab("icons")}>アイコン</button>}
         <button
           className={`tab-button ${activeTab === "stamps" ? "active" : ""}`}
           onClick={() => setActiveTab("stamps")}
@@ -153,6 +212,23 @@ function MainApp() {
         <p className="setting-description">アプリの表示モードや全体設定を変更できます。</p>
         <button className="theme-toggle-btn" onClick={() => setIsDarkMode(!isDarkMode)}>
           {isDarkMode ? "☀️ ライトモードにする" : "🌙 ダークモードにする"}
+        </button>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "20px", color: theme.textMain, fontWeight: 600, cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={isIconTabVisible}
+            onChange={(event) => setIsIconTabVisible(event.target.checked)}
+            style={{ width: "16px", height: "16px", accentColor: theme.activeColor, cursor: "pointer" }}
+          />
+          <span>アイコンタブボタンを表示する</span>
+        </label>
+        <p className="setting-description">オフにすると、上部の「アイコン」メニューボタンを非表示にします。</p>
+        <button className="theme-toggle-btn" onClick={handleCheckForUpdates} disabled={isCheckingForUpdates}>
+          {isCheckingForUpdates ? "更新を確認中…" : "アプリの更新を確認"}
+        </button>
+        {updateStatus && <p className="setting-description">{updateStatus}</p>}
+        <button className="theme-toggle-btn" onClick={handleStartLLM}>
+          🤖 LLMサーバーを起動（テスト用）
         </button>
       </div>
 
