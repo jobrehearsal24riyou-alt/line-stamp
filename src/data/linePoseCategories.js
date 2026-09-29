@@ -1,0 +1,68 @@
+export const LINE_POSE_CATEGORIES = [
+  {
+    id: "greeting",
+    label: "あいさつ・好意",
+    poses: [
+      { id: "wave", label: "元気に手を振る", prompt: "waving enthusiastically" },
+      { id: "bow", label: "丁寧にお辞儀する", prompt: "bowing politely" },
+      { id: "thumbs_up", label: "親指を立てる", prompt: "giving a thumbs-up" },
+      { id: "smile_nod", label: "笑顔でうなずく", prompt: "smiling and nodding" },
+      { id: "wink", label: "楽しそうにウインクする", prompt: "winking playfully" },
+      { id: "hello_both_hands", label: "両手を上げてあいさつする", prompt: "saying hello with both hands raised" },
+      { id: "salute", label: "敬礼してあいさつする", prompt: "giving a cheerful salute" },
+      { id: "clap", label: "嬉しそうに拍手する", prompt: "clapping happily" },
+      { id: "heart_hands", label: "手でハートを作る", prompt: "making a heart gesture with hands" },
+      { id: "friendly_greeting", label: "前のめりで親しげにあいさつする", prompt: "leaning forward in a friendly greeting" },
+    ],
+  },
+  {
+    id: "emotion",
+    label: "感情・リアクション",
+    poses: [
+      { id: "surprised", label: "頬に手を当てて驚く", prompt: "looking surprised with hands on cheeks" },
+      { id: "crying", label: "涙を流して泣く", prompt: "crying with tears" },
+      { id: "laughing", label: "目を閉じて大笑いする", prompt: "laughing with eyes closed" },
+      { id: "blushing", label: "照れて赤くなる", prompt: "blushing shyly" },
+      { id: "confused", label: "疑問符を浮かべて困る", prompt: "looking confused with a question mark" },
+      { id: "sleeping", label: "気持ちよさそうに眠る", prompt: "sleeping peacefully" },
+      { id: "angry", label: "頬を膨らませて怒る", prompt: "looking angry with puffed cheeks" },
+      { id: "relieved", label: "ほっとして微笑む", prompt: "feeling relieved with a gentle smile" },
+      { id: "thinking", label: "顎に手を当てて考える", prompt: "thinking with one hand on chin" },
+      { id: "celebrate", label: "キラキラしながら喜ぶ", prompt: "celebrating with sparkles" },
+    ],
+  },
+  {
+    id: "action",
+    label: "動き・アクション",
+    poses: [
+      { id: "jump", label: "両手を上げてジャンプする", prompt: "jumping with both arms raised" },
+      { id: "run", label: "元気に走る", prompt: "running energetically" },
+      { id: "dance", label: "楽しそうに踊る", prompt: "dancing joyfully" },
+      { id: "stretch", label: "両手を上げて伸びをする", prompt: "stretching with arms overhead" },
+      { id: "spin", label: "嬉しそうにくるくる回る", prompt: "spinning with excitement" },
+      { id: "fall", label: "大げさに転ぶ", prompt: "falling over dramatically" },
+      { id: "crawl", label: "楽しそうに前へ這う", prompt: "crawling forward playfully" },
+      { id: "sneak", label: "つま先立ちでこっそり歩く", prompt: "sneaking on tiptoe" },
+      { id: "balance", label: "片足立ちでバランスを取る", prompt: "balancing on one foot" },
+      { id: "reach", label: "一生懸命に手を伸ばす", prompt: "reaching upward eagerly" },
+    ],
+  },
+  {
+    id: "communication",
+    label: "伝える・応援",
+    poses: [
+      { id: "point", label: "自信を持って指差す", prompt: "pointing to the side with confidence" },
+      { id: "sign", label: "看板を誇らしげに持つ", prompt: "holding a sign proudly" },
+      { id: "call", label: "手を口に添えて呼ぶ", prompt: "calling someone with hand near mouth" },
+      { id: "listen", label: "手を耳に当てて聞く", prompt: "listening attentively with hand behind ear" },
+      { id: "no", label: "首を横に振る", prompt: "shaking head no" },
+      { id: "yes", label: "大きくうなずく", prompt: "nodding yes" },
+      { id: "ask", label: "手を合わせてお願いする", prompt: "asking politely with hands together" },
+      { id: "apologize", label: "手を合わせて謝る", prompt: "apologizing with hands pressed together" },
+      { id: "cheer", label: "メガホンで応援する", prompt: "cheering with a megaphone" },
+      { id: "kiss", label: "投げキッスをする", prompt: "blowing a kiss" },
+    ],
+  },
+];
+
+export const ALL_LINE_POSES = LINE_POSE_CATEGORIES.flatMap((category) => category.poses);

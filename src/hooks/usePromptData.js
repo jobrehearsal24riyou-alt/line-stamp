@@ -40,6 +40,7 @@ export const usePromptData = () => {
 
   const [lineEditablePrompt, setLineEditablePrompt] = useState("");
   const [lineIsCopied, setLineIsCopied] = useState(false);
+  const [masterRevision, setMasterRevision] = useState(0);
 
   // ==========================================
   // テーマ
@@ -50,40 +51,35 @@ export const usePromptData = () => {
   });
 
   // ==========================================
-  // 1. 画面起動時：DB初期化 → マスターデータをロード
+  // 1. DB初期化 → マスターデータをロード（管理画面保存後にも再利用）
   // ==========================================
-  useEffect(() => {
-    const loadInitialMaster = async () => {
-      try {
-        await initDatabase();
-        const db = await Database.load("sqlite:app.db");
+  const reloadMasterData = async () => {
+    try {
+      await initDatabase();
+      const db = await Database.load("sqlite:app.db");
 
-        // アイコン用
-        const catResult = await db.select("SELECT category_id, category_name_ja FROM categories ORDER BY id ASC;");
-        setCategories(catResult);
+      const catResult = await db.select("SELECT category_id, category_name_ja FROM categories WHERE is_enabled = 1 ORDER BY id ASC;");
+      setCategories(catResult);
 
-        const styleResult = await db.select("SELECT style_id, style_name_ja FROM styles ORDER BY id ASC;");
-        setStyles(styleResult);
+      const styleResult = await db.select("SELECT style_id, style_name_ja FROM styles WHERE is_enabled = 1 ORDER BY id ASC;");
+      setStyles(styleResult);
 
-        // LINE用：主役
-        const subjectResult = await db.select("SELECT subject_id, animal_type, name_ja, name_en FROM line_subjects ORDER BY id ASC;");
-        setLineSubjects(subjectResult);
+      const subjectResult = await db.select("SELECT subject_id, animal_type, name_ja, name_en FROM line_subjects WHERE is_enabled = 1 ORDER BY id ASC;");
+      setLineSubjects(subjectResult);
 
-        // LINE用：掛け合わせカテゴリ
-        const combCatResult = await db.select("SELECT category_id, name_ja FROM line_combination_categories ORDER BY id ASC;");
-        setLineCombinationCategories(combCatResult);
+      const combCatResult = await db.select("SELECT category_id, name_ja FROM line_combination_categories WHERE is_enabled = 1 ORDER BY id ASC;");
+      setLineCombinationCategories(combCatResult);
+      setMasterRevision((revision) => revision + 1);
+    } catch (error) {
+      console.warn("DB unavailable, falling back to built-in seed data:", error);
+      setCategories(iconSeedData.categories);
+      setStyles(iconSeedData.styles);
+      setLineSubjects([]);
+      setLineCombinationCategories([]);
+    }
+  };
 
-      } catch (error) {
-        console.warn("DB unavailable, falling back to built-in seed data:", error);
-        setCategories(iconSeedData.categories);
-        setStyles(iconSeedData.styles);
-        setLineSubjects([]);
-        setLineCombinationCategories([]);
-      }
-    };
-    loadInitialMaster();
-  }, []);
-
+  useEffect(() => { reloadMasterData(); }, []);
   // ==========================================
   // 2. 大カテゴリ選択時：連動データ取得（アイコン用）
   // ==========================================
@@ -102,6 +98,7 @@ export const usePromptData = () => {
           `SELECT id, subcategory_id, subcategory_name_ja, item_name_ja, item_name_en
            FROM subcategories
            WHERE category_id = $1
+             AND is_enabled = 1
            ORDER BY id ASC;`,
           [selectedCategory]
         );
@@ -132,7 +129,7 @@ export const usePromptData = () => {
       }
     };
     fetchLinkedSubcategories();
-  }, [selectedCategory]);
+  }, [selectedCategory, masterRevision]);
 
   // ==========================================
   // 3. 画風スタイル連動（アイコン用）
@@ -147,24 +144,27 @@ export const usePromptData = () => {
       try {
         const db = await Database.load("sqlite:app.db");
         const result = await db.select(
-          `SELECT substyles.substyle_id, substyles.substyle_name_ja, substyles.prompt_text
-           FROM substyles
-           INNER JOIN styles ON substyles.style_id = styles.style_id
+          `SELECT style_prompts.prompt_id AS substyle_id,
+                  style_prompts.prompt_text AS substyle_name_ja,
+                  style_prompts.prompt_text AS prompt_text
+           FROM style_prompts
+           INNER JOIN styles ON style_prompts.style_id = styles.style_id
            WHERE styles.style_id = $1
-           ORDER BY substyles.id ASC;`,
+             AND styles.is_enabled = 1
+             AND style_prompts.is_enabled = 1
+           ORDER BY style_prompts.sort_order ASC, style_prompts.id ASC;`,
           [selectedStyle]
         );
         setSubstyles(result);
         setSelectedPromptParts([]);
       } catch (error) {
-        console.warn("Using fallback substyle data:", error);
-        const fallback = iconSeedData.substyles.filter((sub) => sub.style_id === selectedStyle);
-        setSubstyles(fallback);
+        console.warn("Using fallback prompt data:", error);
+        setSubstyles([]);
         setSelectedPromptParts([]);
       }
     };
     fetchLinkedSubstyles();
-  }, [selectedStyle]);
+  }, [selectedStyle, masterRevision]);
 
   // ==========================================
   // 4. 掛け合わせカテゴリ選択時：掛け合わせ一覧取得（LINE用）
@@ -180,10 +180,12 @@ export const usePromptData = () => {
       try {
         const db = await Database.load("sqlite:app.db");
         const result = await db.select(
-          `SELECT lc.combination_id, lc.name_ja, lc.name_en, c.name_ja as category_name_ja
+          `SELECT lc.combination_id, lc.category_id, lc.name_ja, lc.name_en, c.name_ja as category_name_ja
            FROM line_combinations lc
            INNER JOIN line_combination_categories c ON lc.category_id = c.category_id
            WHERE lc.category_id = $1
+             AND lc.is_enabled = 1
+             AND c.is_enabled = 1
            ORDER BY lc.id ASC;`,
           [selectedCombinationCategoryId]
         );
@@ -196,7 +198,7 @@ export const usePromptData = () => {
       }
     };
     fetchLinkedCombinations();
-  }, [selectedCombinationCategoryId]);
+  }, [selectedCombinationCategoryId, masterRevision]);
 
   // ==========================================
   // 5. LINE用スタイル連動
@@ -212,11 +214,15 @@ export const usePromptData = () => {
       try {
         const db = await Database.load("sqlite:app.db");
         const result = await db.select(
-          `SELECT substyles.substyle_id, substyles.substyle_name_ja, substyles.prompt_text
-           FROM substyles
-           INNER JOIN styles ON substyles.style_id = styles.style_id
+          `SELECT style_prompts.prompt_id AS substyle_id,
+                  style_prompts.prompt_text AS substyle_name_ja,
+                  style_prompts.prompt_text AS prompt_text
+           FROM style_prompts
+           INNER JOIN styles ON style_prompts.style_id = styles.style_id
            WHERE styles.style_id = $1
-           ORDER BY substyles.id ASC;`,
+             AND styles.is_enabled = 1
+             AND style_prompts.is_enabled = 1
+           ORDER BY style_prompts.sort_order ASC, style_prompts.id ASC;`,
           [lineSelectedStyle]
         );
         setLineSubstyles(result);
@@ -228,7 +234,7 @@ export const usePromptData = () => {
       }
     };
     fetchLineSubstyles();
-  }, [lineSelectedStyle]);
+  }, [lineSelectedStyle, masterRevision]);
 
   // ==========================================
   // アイコン用：派生データ
@@ -281,9 +287,12 @@ export const usePromptData = () => {
   useEffect(() => {
     const activeSubData = subcategories.find(sub => sub.id === selectedItemId);
     const objectPrompt = activeSubData ? activeSubData.item_name_en : "";
-    const generated = [objectPrompt, ...selectedPromptParts].filter(Boolean).join(", ");
+    const stylePromptTexts = substyles
+      .map((sub) => sub.prompt_text)
+      .filter(Boolean);
+    const generated = [objectPrompt, ...stylePromptTexts].filter(Boolean).join(", ");
     setEditablePrompt(generated);
-  }, [selectedItemId, selectedPromptParts, subcategories]);
+  }, [selectedItemId, substyles, subcategories]);
 
   // ==========================================
   // アイコン用：コピー
@@ -327,6 +336,7 @@ export const usePromptData = () => {
     handleMiddleCategoryChange,
     handleCheckboxChange,
     handleCopy,
+    reloadMasterData,
 
     // LINE用
     lineSubjects, lineCombinationCategories, lineCombinations,

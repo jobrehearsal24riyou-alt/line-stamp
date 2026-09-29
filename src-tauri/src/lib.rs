@@ -1,3 +1,5 @@
+mod stamp_gallery;
+
 use std::path::PathBuf;
 
 use tauri::Manager;
@@ -109,7 +111,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![greet, start_llm_server])
+        .invoke_handler(tauri::generate_handler![greet, start_llm_server, stamp_gallery::initialize_stamp_gallery, stamp_gallery::import_download_images, stamp_gallery::load_stamp_gallery, stamp_gallery::create_stamp_set, stamp_gallery::update_stamp_set, stamp_gallery::delete_stamp_set, stamp_gallery::delete_stamp_image, stamp_gallery::add_images_to_stamp_set, stamp_gallery::remove_images_from_stamp_set, stamp_gallery::read_stamp_image_metadata, stamp_gallery::write_stamp_image_metadata])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

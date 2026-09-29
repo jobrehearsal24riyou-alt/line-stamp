@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# LLM関連の大きいファイルはGit管理しない
+llm-test/

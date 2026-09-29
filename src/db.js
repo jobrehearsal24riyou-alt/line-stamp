@@ -50,21 +50,7 @@ export const initDatabase = async () => {
       );
     `);
 
-    // 4. サブスタイル TBL
-    await db.execute(`
-      CREATE TABLE IF NOT EXISTS substyles (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        style_id TEXT NOT NULL,
-        substyle_id TEXT NOT NULL,
-        substyle_name_ja TEXT NOT NULL,
-        prompt_text TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (style_id) REFERENCES styles(style_id) ON UPDATE CASCADE ON DELETE CASCADE
-      );
-    `);
-
-    // 5. LINE専用マスター：主役 TBL
+    // 4. LINE専用マスター：主役 TBL
     await db.execute(`
       CREATE TABLE IF NOT EXISTS line_subjects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,7 +131,6 @@ export const initDatabase = async () => {
       "categories",
       "subcategories",
       "styles",
-      "substyles",
       "line_packages",
       "line_stamps",
     ];

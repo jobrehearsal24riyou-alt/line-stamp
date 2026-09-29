@@ -7,12 +7,17 @@ import SelectorCard from "./components/SelectorCard";
 import SubstyleSelector from "./components/SubstyleSelector";
 import PromptPreview from "./components/PromptPreview";
 import LineStampMaker from "./components/LineStampMaker";
+import LinePromptSet from "./components/LinePromptSet";
+import StampGallery from "./components/StampGallery";
+import DataManagement from "./components/DataManagement";
 
 import { usePromptData } from "./hooks/usePromptData";
 import { createTheme } from "./constants/theme";
+import "./App.css";
+// 以下テスト用import
 import { invoke } from "@tauri-apps/api/core";
 import { check } from "@tauri-apps/plugin-updater";
-import "./App.css";
+
 
 function MainApp() {
   const {
@@ -44,6 +49,7 @@ function MainApp() {
     lineIsCopied,
     handleLineCheckboxChange,
     handleLineCopy,
+    reloadMasterData,
 
     // テーマ
     isDarkMode, setIsDarkMode,
@@ -57,6 +63,12 @@ function MainApp() {
   });
   const [isCheckingForUpdates, setIsCheckingForUpdates] = React.useState(false);
   const [updateStatus, setUpdateStatus] = React.useState("");
+  const inactiveTabBackground = isDarkMode ? "#475569" : "#e5e7eb";
+  const inactiveTabText = isDarkMode ? "#e2e8f0" : "#475569";
+  const topTabStyle = (tabKey, activeColor = theme.activeBg) => ({
+    color: activeTab === tabKey ? "#ffffff" : inactiveTabText,
+    background: activeTab === tabKey ? activeColor : inactiveTabBackground,
+  });
 
   React.useEffect(() => {
     window.localStorage.setItem("icon-tab-visible", String(isIconTabVisible));
@@ -65,13 +77,15 @@ function MainApp() {
     }
   }, [activeTab, isIconTabVisible]);
 
+
+  // ↓↓↓ test用 ↓↓↓
   async function handleStartLLM() {
     try {
       await invoke("start_llm_server");
       alert("LLMサーバー起動リクエストを送信しました");
-    } catch (error) {
-      console.error("LLMサーバー起動エラー:", error);
-      alert("エラー: " + error);
+    } catch (e) {
+      console.error("LLMサーバー起動エラー:", e);
+      alert("エラー: " + e);
     }
   }
 
@@ -80,6 +94,7 @@ function MainApp() {
 
     setIsCheckingForUpdates(true);
     setUpdateStatus("更新を確認しています…");
+
     try {
       const update = await check();
       if (!update) {
@@ -87,14 +102,16 @@ function MainApp() {
         return;
       }
 
-      const notes = update.body ? "\n\n" + update.body : "";
-      if (!window.confirm("バージョン " + update.version + " に更新できます。ダウンロードしてインストールしますか？" + notes)) {
+      const notes = update.body ? `\n\n${update.body}` : "";
+      if (!window.confirm(`バージョン ${update.version} に更新できます。ダウンロードしてインストールしますか？${notes}`)) {
         setUpdateStatus("更新をキャンセルしました。");
         return;
       }
 
       await update.downloadAndInstall((event) => {
-        if (event.event === "Started" || event.event === "Progress") {
+        if (event.event === "Started") {
+          setUpdateStatus("更新ファイルをダウンロードしています…");
+        } else if (event.event === "Progress") {
           setUpdateStatus("更新ファイルをダウンロードしています…");
         } else if (event.event === "Finished") {
           setUpdateStatus("更新をインストールしています…");
@@ -103,27 +120,27 @@ function MainApp() {
       setUpdateStatus("更新をインストールしました。アプリを再起動してください。");
     } catch (error) {
       console.error("アプリ更新エラー:", error);
-      setUpdateStatus("更新の確認に失敗しました: " + error);
+      setUpdateStatus(`更新の確認に失敗しました: ${error}`);
     } finally {
       setIsCheckingForUpdates(false);
     }
   }
-
+  // ↑↑↑ ここまで ↑↑↑
   return (
     <main className={`container ${isDarkMode ? "" : "light-mode"}`} style={{ color: theme.textMain }}>
 
       <div className="tab-menu">
-        {isIconTabVisible && <button className={"tab-button " + (activeTab === "icons" ? "active" : "")} onClick={() => setActiveTab("icons")}>アイコン</button>}
+        {isIconTabVisible && <button className={`tab-button ${activeTab === "icons" ? "active" : ""}`} onClick={() => setActiveTab("icons")} style={topTabStyle("icons")}>アイコン</button>}
         <button
           className={`tab-button ${activeTab === "stamps" ? "active" : ""}`}
           onClick={() => setActiveTab("stamps")}
-          style={{
-            color: activeTab === "stamps" ? "#ffffff" : theme.lineColor,
-            borderColor: theme.lineColor,
-            background: activeTab === "stamps" ? theme.lineColor : "transparent"
-          }}
+          style={topTabStyle("stamps", theme.lineColor)}
+
         >LINEスタンプ</button>
-        <button className={`tab-button ${activeTab === "settings" ? "active" : ""}`} onClick={() => setActiveTab("settings")}>設定</button>
+        <button className={`tab-button ${activeTab === "set" ? "active" : ""}`} onClick={() => setActiveTab("set")} style={topTabStyle("set", theme.lineColor)}>8枚セット</button>
+        <button className={`tab-button ${activeTab === "gallery" ? "active" : ""}`} onClick={() => setActiveTab("gallery")} style={topTabStyle("gallery", theme.lineColor)}>ギャラリー</button>
+        <button className={`tab-button ${activeTab === "data" ? "active" : ""}`} onClick={() => setActiveTab("data")} style={topTabStyle("data", theme.lineColor)}>データ追加</button>
+        <button className={`tab-button ${activeTab === "settings" ? "active" : ""}`} onClick={() => setActiveTab("settings")} style={topTabStyle("settings")}>設定</button>
       </div>
 
       {/* アイコンタブ */}
@@ -206,6 +223,31 @@ function MainApp() {
         />
       </div>
 
+      {/* 8枚セットタブ */}
+      <div className={`tab-content ${activeTab === "set" ? "active" : ""}`}>
+        <h2 style={{ color: theme.lineColor }}>8枚セット用プロンプト</h2>
+        <LinePromptSet
+          basePrompt={lineEditablePrompt}
+          lineSubjects={lineSubjects}
+          lineCombinations={lineCombinations}
+          selectedSubjectId={selectedSubjectId}
+          selectedAnimalType={selectedAnimalType}
+          selectedCombinationCategoryId={selectedCombinationCategoryId}
+          selectedCombinationId={selectedCombinationId}
+          theme={theme}
+        />
+      </div>
+
+      {/* ギャラリータブ */}
+      <div className={`tab-content ${activeTab === "gallery" ? "active" : ""}`}>
+        <StampGallery theme={theme} />
+      </div>
+
+      {/* データ追加タブ */}
+      <div className={`tab-content ${activeTab === "data" ? "active" : ""}`}>
+        <DataManagement theme={theme} onDataChanged={reloadMasterData} />
+      </div>
+
       {/* 設定タブ */}
       <div className={`tab-content ${activeTab === "settings" ? "active" : ""}`}>
         <h2>設定</h2>
@@ -227,11 +269,12 @@ function MainApp() {
           {isCheckingForUpdates ? "更新を確認中…" : "アプリの更新を確認"}
         </button>
         {updateStatus && <p className="setting-description">{updateStatus}</p>}
+        {/* ↓↓↓ ここから追加(テスト用、後で消す) ↓↓↓ */}
         <button className="theme-toggle-btn" onClick={handleStartLLM}>
           🤖 LLMサーバーを起動（テスト用）
         </button>
+        {/* ↑↑↑ ここまで追加 ↑↑↑ */}
       </div>
-
     </main>
   );
 }

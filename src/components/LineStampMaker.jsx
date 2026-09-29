@@ -1,4 +1,7 @@
 import React, { useRef, useEffect } from "react";
+import AiChatBox from "./AiChatBox";
+import PromptAnalyzer from "./PromptAnalyzer";
+import { ALL_LINE_POSES, LINE_POSE_CATEGORIES } from "../data/linePoseCategories";
 
 // 吹き出し位置の定数（3x3グリッド）
 const SPEECH_BUBBLE_GRID = [
@@ -57,13 +60,13 @@ const BUBBLE_SIZES = [
 
 // 吹き出しの形状
 const BUBBLE_SHAPES = [
-  { id: "none",     label: "なし",                  prompt: "" },
-  { id: "oval",     label: "楕円",                  prompt: "oval speech bubble" },
-  { id: "rect",     label: "四角形",                prompt: "rectangular speech bubble" },
-  { id: "rounded",  label: "角丸四角形",            prompt: "rounded rectangle speech bubble" },
-  { id: "hexagon",  label: "六角形",                prompt: "hexagonal speech bubble" },
-  { id: "triangle", label: "三角形",                prompt: "triangular speech bubble" },
-  { id: "diamond",  label: "ダイヤ形",              prompt: "diamond speech bubble" },
+  { id: "none",     label: "なし",       prompt: "" },
+  { id: "oval",     label: "楕円",       prompt: "oval" },
+  { id: "rect",     label: "四角形",     prompt: "rectangular" },
+  { id: "rounded",  label: "角丸四角形", prompt: "rounded rectangle" },
+  { id: "hexagon",  label: "六角形",     prompt: "hexagonal" },
+  { id: "triangle", label: "三角形",     prompt: "triangular" },
+  { id: "diamond",  label: "ダイヤ形",   prompt: "diamond" },
 ];
 
 // animal_type の日本語表示名
@@ -80,27 +83,29 @@ const ANIMAL_TYPE_LABELS = {
 const FIXED_PREFIX = "high quality, cute kawaii character";
 const FIXED_STYLE = "LINE sticker style, white outline, transparent background, simple illustration";
 
-const normalizeBubbleModifier = (prompt) => (prompt || "").replace(/\s*speech bubble\b/gi, "").trim();
-
+// 吹き出しプロンプトを1つにまとめる関数
 const buildBubblePrompt = ({ bubbleSize, bubbleShape, decoration, color, bubble }) => {
-  const descriptorParts = [
-    bubbleSize?.prompt && normalizeBubbleModifier(bubbleSize.prompt),
-    bubbleShape?.prompt && normalizeBubbleModifier(bubbleShape.prompt),
-    decoration?.prompt && normalizeBubbleModifier(decoration.prompt),
-    color?.prompt && normalizeBubbleModifier(color.prompt),
-  ].filter(Boolean);
+  const parts = [];
 
-  const placement = bubble?.prompt ? normalizeBubbleModifier(bubble.prompt) : "";
-  const normalizedPlacement = placement ? `at ${placement}` : "";
-
-  if (descriptorParts.length === 0 && !normalizedPlacement) {
-    return "";
+  if (bubbleSize?.prompt) parts.push(bubbleSize.prompt);
+  if (bubbleShape?.prompt) parts.push(bubbleShape.prompt);
+  if (decoration?.id !== "none" && decoration?.prompt) {
+    // decorationの "speech bubble" を除去して修飾語だけ取り出す
+    parts.push(decoration.prompt.replace(/\s*speech bubble\b/gi, "").trim());
+  }
+  if (color?.id !== "none" && color?.prompt) {
+    parts.push(color.prompt.replace(/\s*speech bubble\b/gi, "").trim());
   }
 
-  const promptParts = [...descriptorParts, "speech bubble"];
-  if (normalizedPlacement) promptParts.push(normalizedPlacement);
+  // "speech bubble" を1回だけ追加
+  parts.push("speech bubble");
 
-  return promptParts.join(" ").trim();
+  // 位置を追加
+  if (bubble?.id !== "none" && bubble?.prompt) {
+    parts.push(bubble.prompt.replace(/\s*speech bubble\b/gi, "").trim());
+  }
+
+  return parts.filter(Boolean).join(" ").trim();
 };
 
 // アコーディオンセクションのコンポーネント
@@ -109,7 +114,7 @@ function AccordionSection({ stepNumber, title, isOpen, onToggle, selectedLabel, 
     <div style={{
       marginTop: isFirst ? "0px" : "12px",
       borderRadius: "8px",
-      border: `1px solid ${theme.cardBorder}`,
+      border: `2px solid ${theme.cardBorder}`,
       overflow: "hidden"
     }}>
       <div
@@ -159,7 +164,6 @@ export default function LineStampMaker({
   selectedSubjectId, setSelectedSubjectId,
   selectedCombinationCategoryId, setSelectedCombinationCategoryId,
   selectedCombinationId, setSelectedCombinationId,
-  // 画風スタイル用props
   styles,
   lineSelectedStyle, setLineSelectedStyle,
   lineSubstyles,
@@ -174,12 +178,62 @@ export default function LineStampMaker({
   const [selectedDecoration, setSelectedDecoration] = React.useState("none");
   const [selectedColor, setSelectedColor] = React.useState("none");
   const [selectedCombinationStyle, setSelectedCombinationStyle] = React.useState("holding");
+  const [selectedPoseCategoryId, setSelectedPoseCategoryId] = React.useState("greeting");
+  const [selectedPose, setSelectedPose] = React.useState("wave");
   const [selectedBubbleSize, setSelectedBubbleSize] = React.useState("medium");
   const [selectedBubbleShape, setSelectedBubbleShape] = React.useState("none");
 
   const [openStep2, setOpenStep2] = React.useState(false);
   const [openStep3, setOpenStep3] = React.useState(false);
   const [openStep4, setOpenStep4] = React.useState(false);
+
+  const [isAiLoading, setIsAiLoading] = React.useState(false);
+  const [aiError, setAiError] = React.useState("");
+
+  async function handleAiRefine() {
+    if (!lineEditablePrompt || lineEditablePrompt.trim() === "") {
+      setAiError("プロンプトが空です");
+      return;
+    }
+    setIsAiLoading(true);
+    setAiError("");
+    try {
+      const res = await fetch("http://127.0.0.1:8080/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "system",
+              content: "あなたはAI画像生成用プロンプトの編集アシスタントです。与えられたプロンプトの重複タグや矛盾を整理し、自然な英語のプロンプトに修正してください。説明や前置きは不要で、修正後のプロンプト文字列のみを出力してください。"
+            },
+            {
+              role: "user",
+              content: lineEditablePrompt
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 300
+        })
+      });
+
+      if (!res.ok) throw new Error(`サーバーエラー: ${res.status}`);
+
+      const data = await res.json();
+      const refined = data.choices?.[0]?.message?.content?.trim();
+
+      if (refined) {
+        setLineEditablePrompt(refined);
+      } else {
+        setAiError("AIから有効な応答が得られませんでした");
+      }
+    } catch (e) {
+      console.error("AI整形エラー:", e);
+      setAiError("AIサーバーに接続できませんでした");
+    } finally {
+      setIsAiLoading(false);
+    }
+  }
 
   const textareaRef = useRef(null);
   const animalTypes = Object.keys(ANIMAL_TYPE_LABELS);
@@ -209,7 +263,7 @@ export default function LineStampMaker({
 
     const parts = [];
 
-    // 1. 固定プレフィックス（high quality, cute kawaii character）
+    // 1. 固定プレフィックス
     parts.push(FIXED_PREFIX);
 
     // 2. キャラクター + 組み合わせ
@@ -221,7 +275,9 @@ export default function LineStampMaker({
       }
     }
 
-    // 3. 固定スタイル（LINE sticker style, white outline, transparent background...）
+    // 3. ポーズと固定スタイル
+    const pose = ALL_LINE_POSES.find((item) => item.id === selectedPose);
+    if (pose) parts.push(`Pose: ${pose.prompt}`);
     parts.push(FIXED_STYLE);
 
     // 4. サブスタイルパーツ（任意選択）
@@ -229,41 +285,23 @@ export default function LineStampMaker({
       parts.push(lineSelectedPromptParts.join(", "));
     }
 
-    // 5. デコレーション
-    if (decoration && decoration.id !== "none" && decoration.prompt) {
-      parts.push(decoration.prompt);
-    }
-
-    // 6. 吹き出し（サイズ・形状・位置・色を統合して "speech bubble" を1回だけ付ける）
-    const bubblePrompt = buildBubblePrompt({
-      bubbleSize,
-      bubbleShape,
-      decoration,
-      color,
-      bubble,
-    });
-
-    const isBubbleEnabled = selectedBubble !== "none"
-      || selectedDecoration !== "none"
-      || selectedColor !== "none"
-      || selectedBubbleShape !== "none"
-      || selectedBubbleSize !== "medium";
-
-    if (bubblePrompt) {
-      parts.push(bubblePrompt);
-    }
+    // 5. 吹き出し（位置が選択されているときだけ追加）
+    // 位置が "none" 以外のときだけ吹き出し関連プロンプトを追加する
+    const isBubbleEnabled = selectedBubble !== "none";
 
     if (isBubbleEnabled) {
+      const bubblePrompt = buildBubblePrompt({ bubbleSize, bubbleShape, decoration, color, bubble });
+      if (bubblePrompt) parts.push(bubblePrompt);
+
+      // 吹き出しがある場合は固定で追加（文字が入らないようにする）
       parts.push("speech bubble tail pointing to character's mouth");
-      parts.push("empty");
-      parts.push("no text inside bubble");
-      parts.push("white background inside bubble");
+      parts.push("empty speech bubble, no text inside, blank interior, white background inside bubble");
     }
 
     const generated = parts.filter(Boolean).join(", ");
     setLineEditablePrompt(generated);
   }, [
-    selectedSubjectId, selectedCombinationId, selectedCombinationStyle,
+    selectedSubjectId, selectedCombinationId, selectedCombinationStyle, selectedPose,
     selectedBubble, selectedDecoration, selectedColor,
     selectedBubbleSize, selectedBubbleShape,
     lineSelectedPromptParts,
@@ -273,6 +311,7 @@ export default function LineStampMaker({
   const selectedSubject = lineSubjects.find(s => s.subject_id === selectedSubjectId);
   const selectedCombination = lineCombinations.find(c => c.combination_id === selectedCombinationId);
   const selectedCombinationCategory = lineCombinationCategories.find(c => c.category_id === selectedCombinationCategoryId);
+  const selectedPoseCategory = LINE_POSE_CATEGORIES.find((category) => category.id === selectedPoseCategoryId) || LINE_POSE_CATEGORIES[0];
 
   return (
     <div style={{ marginTop: "16px" }}>
@@ -419,13 +458,46 @@ export default function LineStampMaker({
             </AccordionSection>
           )}
 
+          {/* 4-3. ポーズ */}
+          {selectedCombinationId && (
+            <AccordionSection stepNumber="4-3" title="ポーズを選んでください" isOpen={true} onToggle={null} theme={theme}>
+              <div style={{ marginBottom: "14px" }}>
+                <div style={{ marginBottom: "8px", color: theme.textMuted, fontSize: "0.85rem", fontWeight: "600" }}>ポーズカテゴリ</div>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  {LINE_POSE_CATEGORIES.map((category) => {
+                    const isChecked = selectedPoseCategoryId === category.id;
+                    return (
+                      <button key={category.id}
+                        onClick={() => { setSelectedPoseCategoryId(category.id); setSelectedPose(category.poses[0].id); }}
+                        aria-pressed={isChecked}
+                        style={{ padding: "9px 15px", borderRadius: "8px", border: isChecked ? `2px solid ${theme.lineColor}` : `1px solid ${theme.cardBorder}`, background: isChecked ? theme.lineColor : theme.cardBg, color: isChecked ? "#ffffff" : theme.textMain, fontWeight: "600", cursor: "pointer" }}
+                      >{category.label}</button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div style={{ marginBottom: "8px", color: theme.textMuted, fontSize: "0.85rem", fontWeight: "600" }}>{selectedPoseCategory.label}のポーズ（10種類）</div>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                  {selectedPoseCategory.poses.map((pose) => {
+                    const isChecked = selectedPose === pose.id;
+                    return (
+                      <button key={pose.id} onClick={() => setSelectedPose(pose.id)} aria-pressed={isChecked}
+                        style={{ padding: "10px 18px", borderRadius: "20px", border: isChecked ? `2px solid ${theme.lineColor}` : `1px solid ${theme.cardBorder}`, background: isChecked ? theme.lineColor : "transparent", color: isChecked ? "#ffffff" : theme.textMain, fontWeight: "600", cursor: "pointer" }}>
+                        {pose.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </AccordionSection>
+          )}
           {/* 5. 画風スタイル＋サブスタイルパーツ（任意） */}
           {selectedCombinationId && styles && styles.length > 0 && (
             <AccordionSection
               stepNumber={5} title="画風スタイルを選んでください（任意）"
               isOpen={true} onToggle={null} theme={theme}
             >
-              {/* スタイル選択 */}
               <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
                 {styles.map((st) => {
                   const isChecked = lineSelectedStyle === st.style_id;
@@ -445,26 +517,28 @@ export default function LineStampMaker({
                 })}
               </div>
 
-              {/* サブスタイルパーツ（スタイル選択後に表示） */}
               {lineSubstyles && lineSubstyles.length > 0 && (
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  {lineSubstyles.map((sub) => {
-                    const isChecked = lineSelectedPromptParts && lineSelectedPromptParts.includes(sub.prompt_text);
-                    return (
-                      <button key={sub.substyle_id}
-                        onClick={() => handleLineCheckboxChange(sub.prompt_text)}
-                        aria-pressed={isChecked}
-                        style={{
-                          padding: "6px 14px", borderRadius: "6px",
-                          border: isChecked ? `2px solid ${theme.lineColor}` : `1px solid ${theme.cardBorder}`,
-                          background: isChecked ? theme.lineColor : theme.cardBg,
-                          color: isChecked ? "#ffffff" : theme.textMain,
-                          fontWeight: "600", cursor: "pointer", transition: "all 0.15s ease",
-                          fontSize: "0.85rem"
-                        }}
-                      >{sub.substyle_name_ja}</button>
-                    );
-                  })}
+                <div>
+                  <div style={{ marginBottom: "8px", color: theme.textMuted, fontSize: "0.8rem", fontWeight: "600" }}>複数選択可</div>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    {lineSubstyles.map((sub) => {
+                      const isChecked = lineSelectedPromptParts && lineSelectedPromptParts.includes(sub.prompt_text);
+                      return (
+                        <button key={sub.substyle_id}
+                          onClick={() => handleLineCheckboxChange(sub.prompt_text)}
+                          aria-pressed={isChecked}
+                          style={{
+                            padding: "6px 14px", borderRadius: "6px",
+                            border: isChecked ? `2px solid ${theme.lineColor}` : `1px solid ${theme.cardBorder}`,
+                            background: isChecked ? theme.lineColor : theme.cardBg,
+                            color: isChecked ? "#ffffff" : theme.textMain,
+                            fontWeight: "600", cursor: "pointer", transition: "all 0.15s ease",
+                            fontSize: "0.85rem"
+                          }}
+                        >{sub.substyle_name_ja}</button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </AccordionSection>
@@ -474,10 +548,10 @@ export default function LineStampMaker({
         {/* 右カラム：吹き出し設定 */}
         <div style={{
           width: "320px", flexShrink: 0,
-          borderRadius: "8px", border: `1px solid ${theme.cardBorder}`,
+          borderRadius: "8px", border: `2px solid ${theme.cardBorder}`,
           overflow: "hidden"
         }}>
-          <div style={{ padding: "12px 16px", background: theme.accordionBg, borderBottom: `1px solid ${theme.cardBorder}` }}>
+          <div style={{ padding: "12px 16px", background: theme.accordionBg, borderBottom: `2px solid ${theme.cardBorder}` }}>
             <span style={{ fontWeight: "600", color: theme.textMain }}>■ 吹き出しの設定</span>
           </div>
           <div style={{ padding: "16px", background: theme.accordionBg }}>
@@ -528,7 +602,7 @@ export default function LineStampMaker({
               })}
             </div>
 
-            {/* 形状（4列） */}
+            {/* 形状 */}
             <p style={{ margin: "0 0 8px", fontSize: "0.8rem", color: theme.textMuted, fontWeight: "600" }}>形状</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "5px", marginBottom: "16px" }}>
               {BUBBLE_SHAPES.map((shape) => {
@@ -609,24 +683,45 @@ export default function LineStampMaker({
         <div style={{
           marginTop: "24px", padding: "16px",
           background: theme.previewBg, borderRadius: "8px",
-          border: `1px solid ${theme.lineColor}`
+          border: `2px solid ${theme.lineColor}`
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
             <p style={{ margin: 0, fontSize: "0.85rem", color: theme.lineColor, fontWeight: "bold" }}>
               📋 出力される完成プロンプト（直接編集できます）
             </p>
-            <button onClick={handleLineCopy}
-              style={{
-                padding: "6px 14px",
-                background: lineIsCopied ? theme.successColor : theme.lineColor,
-                color: "#ffffff", border: "none", borderRadius: "4px",
-                fontWeight: "bold", cursor: "pointer",
-                transition: "all 0.2s ease", boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-              }}
-            >
-              {lineIsCopied ? "✓ コピーしました！" : "📄 プロンプトをコピー"}
-            </button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={handleAiRefine}
+                disabled={isAiLoading}
+                style={{
+                  padding: "6px 14px",
+                  background: isAiLoading ? theme.cardBorder : "#7c3aed",
+                  color: "#ffffff", border: "none", borderRadius: "4px",
+                  fontWeight: "bold", cursor: isAiLoading ? "default" : "pointer",
+                  transition: "all 0.2s ease", boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                }}
+              >
+                {isAiLoading ? "整形中..." : "🤖 AIで整形"}
+              </button>
+              <button onClick={handleLineCopy}
+                style={{
+                  padding: "6px 14px",
+                  background: lineIsCopied ? theme.successColor : theme.lineColor,
+                  color: "#ffffff", border: "none", borderRadius: "4px",
+                  fontWeight: "bold", cursor: "pointer",
+                  transition: "all 0.2s ease", boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+                }}
+              >
+                {lineIsCopied ? "✓ コピーしました！" : "📄 プロンプトをコピー"}
+              </button>
+            </div>
           </div>
+
+          {aiError && (
+            <p style={{ margin: "0 0 8px 0", fontSize: "0.8rem", color: "#dc2626" }}>
+              ⚠ {aiError}
+            </p>
+          )}
+
           <textarea
             ref={textareaRef}
             value={lineEditablePrompt}
@@ -635,12 +730,18 @@ export default function LineStampMaker({
               width: "100%", padding: "10px",
               fontFamily: "monospace", fontSize: "0.95rem",
               color: theme.previewText, backgroundColor: theme.inputBg,
-              border: `1px solid ${theme.cardBorder}`,
+              border: `2px solid ${theme.cardBorder}`,
               borderRadius: "6px", resize: "none",
               boxSizing: "border-box", outline: "none",
               lineHeight: "1.4", overflow: "hidden"
             }}
           />
+          <AiChatBox
+            currentPrompt={lineEditablePrompt}
+            onApplyPrompt={setLineEditablePrompt}
+            theme={theme}
+          />
+          <PromptAnalyzer currentPrompt={lineEditablePrompt} theme={theme} />
         </div>
       )}
 
