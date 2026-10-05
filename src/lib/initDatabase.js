@@ -31,5 +31,6 @@ export const initDatabase = async () => {
     console.log("データベースの初期化が正常に完了しました。");
   } catch (error) {
     console.error("データベースの初期化に失敗しました:", error);
+    throw error;
   }
 };

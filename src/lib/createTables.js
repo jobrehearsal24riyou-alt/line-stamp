@@ -4,7 +4,26 @@ const ensureColumn = async (db, tableName, columnDefinition) => {
   const exists = columns.some((column) => column.name === columnName);
 
   if (!exists) {
-    await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnDefinition};`);
+    try {
+      await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnDefinition};`);
+    } catch (error) {
+      // SQLite は ALTER TABLE ... ADD COLUMN で CURRENT_TIMESTAMP を既定値にできない。
+      // 旧版のDBを更新する場合だけ、固定の既定値で列を追加して既存行を補完する。
+      if (!/DEFAULT\s+CURRENT_TIMESTAMP/i.test(columnDefinition)) {
+        throw error;
+      }
+
+      const migrationDefinition = columnDefinition.replace(
+        /DEFAULT\s+CURRENT_TIMESTAMP/i,
+        "DEFAULT ''"
+      );
+      await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${migrationDefinition};`);
+      await db.execute(
+        `UPDATE ${tableName}
+         SET ${columnName} = CURRENT_TIMESTAMP
+         WHERE ${columnName} IS NULL OR ${columnName} = '';`
+      );
+    }
   }
 };
 
