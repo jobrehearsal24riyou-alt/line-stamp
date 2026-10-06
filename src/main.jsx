@@ -57,6 +57,12 @@ function MainApp() {
 
   const theme = createTheme(isDarkMode);
   const [activeTab, setActiveTab] = React.useState("stamps");
+  const [lineBubbleSettings, setLineBubbleSettings] = React.useState({
+    enabled: false,
+    bubbleId: "none",
+    sizeId: "medium",
+    colorId: "none",
+  });
   const [isIconTabVisible, setIsIconTabVisible] = React.useState(() => {
     const savedValue = window.localStorage.getItem("icon-tab-visible");
     return savedValue === "true";
@@ -219,6 +225,7 @@ function MainApp() {
           setLineEditablePrompt={setLineEditablePrompt}
           lineIsCopied={lineIsCopied}
           handleLineCopy={handleLineCopy}
+          onBubbleSettingsChange={setLineBubbleSettings}
           theme={theme}
         />
       </div>
@@ -234,6 +241,7 @@ function MainApp() {
           selectedAnimalType={selectedAnimalType}
           selectedCombinationCategoryId={selectedCombinationCategoryId}
           selectedCombinationId={selectedCombinationId}
+          bubbleSettings={lineBubbleSettings}
           theme={theme}
         />
       </div>
