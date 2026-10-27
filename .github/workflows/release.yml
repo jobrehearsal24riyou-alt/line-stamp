@@ -56,6 +56,28 @@ jobs:
         with:
           tagName: app-v__VERSION__
           releaseName: "prompt_make_projects v__VERSION__"
-          releaseBody: "Windows x64 installer and updater artifacts."
+          releaseBody: "Windows x64 installer, ZIP installer, and updater artifacts."
           releaseDraft: true
           prerelease: false
+
+      - name: Create ZIP installer
+        id: zip-installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis" -Filter "*-setup.exe" -File |
+            Select-Object -First 1
+          if (!$installer) {
+            throw "NSIS installer was not generated"
+          }
+
+          $archive = Join-Path $installer.DirectoryName "$($installer.BaseName).zip"
+          Compress-Archive -LiteralPath $installer.FullName -DestinationPath $archive -CompressionLevel Optimal -Force
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+
+      - name: Upload ZIP installer to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = (Get-Content "src-tauri/tauri.conf.json" | ConvertFrom-Json).version
+          gh release upload "app-v$version" "${{ steps.zip-installer.outputs.archive }}" --clobber
