@@ -278,7 +278,7 @@ function MainApp() {
         </button>
         {updateStatus && <p className="setting-description">{updateStatus}</p>}
         {/* ↓↓↓ ここから追加(テスト用、後で消す) ↓↓↓ */}
-        <button className="theme-toggle-btn" onClick={handleStartLLM}>
+        <button className="theme-toggle-btn" onClick={handleStartLLM} style={{ marginLeft: "12px" }}>
           🤖 LLMサーバーを起動（テスト用）
         </button>
         {/* ↑↑↑ ここまで追加 ↑↑↑ */}
